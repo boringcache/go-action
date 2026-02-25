@@ -1,0 +1,80 @@
+name: 'BoringCache Go'
+description: 'Cache once. Reuse everywhere. Setup Go via mise and cache Go + modules + build artifacts with BoringCache.'
+author: 'BoringCache'
+
+branding:
+  icon: 'package'
+  color: 'blue'
+
+inputs:
+  cli-version:
+    description: 'BoringCache CLI version (e.g., v1.0.0). Set to "skip" to disable automatic CLI setup.'
+    required: false
+    default: 'v1.8.0'
+  workspace:
+    description: 'BoringCache workspace (e.g., "my-workspace" or "org/workspace")'
+    required: false
+  cache-tag:
+    description: 'Cache tag prefix for BoringCache. Defaults to repository name.'
+    required: false
+    default: ''
+  go-version:
+    description: 'Go version to install via mise. Auto-detected from go.mod, go.work, .go-version, or .tool-versions if not specified.'
+    required: false
+  working-directory:
+    description: 'Working directory for the project'
+    required: false
+    default: '.'
+  cache-go:
+    description: 'Cache Go installation from mise'
+    required: false
+    default: 'true'
+  cache-modules:
+    description: 'Cache Go module cache (GOMODCACHE)'
+    required: false
+    default: 'true'
+  cache-build:
+    description: 'Cache Go build cache (GOCACHE). Automatically disabled when gocacheprog is enabled.'
+    required: false
+    default: 'true'
+  gocacheprog:
+    description: 'Enable GOCACHEPROG proxy for build caching (Go 1.24+). Runs a cache-registry proxy and sets GOCACHEPROG for per-object CAS dedup. Often faster than archiving GOCACHE for large projects.'
+    required: false
+    default: 'false'
+  verbose:
+    description: 'Enable verbose CLI output for debugging'
+    required: false
+    default: 'false'
+  exclude:
+    description: 'Glob pattern to exclude files from cache digest'
+    required: false
+  save-always:
+    description: 'Save cache even if the job fails'
+    required: false
+    default: 'false'
+
+runs:
+  using: 'node24'
+  main: 'dist/restore/index.js'
+  post: 'dist/save/index.js'
+  post-if: "success() || inputs.save-always == 'true'"
+
+outputs:
+  workspace:
+    description: 'Resolved workspace name'
+  go-version:
+    description: 'Installed Go version'
+  cache-tag:
+    description: 'Cache tag prefix used'
+  go-tag:
+    description: 'Cache tag used for Go installation'
+  modules-tag:
+    description: 'Cache tag for module cache'
+  build-tag:
+    description: 'Cache tag for build cache'
+  cache-hit:
+    description: 'Whether any cache was restored'
+  go-cache-hit:
+    description: 'Whether the Go installation cache was restored'
+  gocacheprog-enabled:
+    description: 'Whether GOCACHEPROG proxy mode is active'

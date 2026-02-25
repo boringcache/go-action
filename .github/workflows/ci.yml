@@ -1,0 +1,180 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  BORINGCACHE_API_TOKEN: ${{ secrets.BORINGCACHE_API_TOKEN }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: boringcache/nodejs-action@v1
+        with:
+          node-version: '22'
+          workspace: boringcache/actions
+
+      - run: npm install
+      - run: npm run build
+      - run: npm test
+
+  test:
+    needs: build
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: boringcache/nodejs-action@v1
+        with:
+          node-version: '22'
+          workspace: boringcache/actions
+
+      - run: npm install
+      - run: npm run build
+
+      - name: Test action (archive mode)
+        id: go
+        uses: ./
+        with:
+          workspace: boringcache/actions
+          go-version: '1.23'
+
+      - name: Verify Go installed
+        run: |
+          set -euo pipefail
+          echo "go-version output: ${{ steps.go.outputs.go-version }}"
+          echo "go-cache-hit: ${{ steps.go.outputs.go-cache-hit }}"
+          echo "cache-hit: ${{ steps.go.outputs.cache-hit }}"
+          go version
+          go version | grep -q "go1.23" || { echo "Expected Go 1.23"; exit 1; }
+
+      - name: Verify Go environment
+        run: |
+          set -euo pipefail
+          echo "GOMODCACHE=$(go env GOMODCACHE)"
+          echo "GOCACHE=$(go env GOCACHE)"
+          echo "GOPATH=$(go env GOPATH)"
+
+      - name: Build test project
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/go-test && cd /tmp/go-test
+          go mod init example.com/test
+          cat > main.go << 'EOF'
+          package main
+
+          import "fmt"
+
+          func main() {
+              fmt.Println("Hello from Go archive mode test")
+          }
+          EOF
+          go build -v ./...
+          ./test
+
+  test-gocacheprog:
+    needs: build
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: boringcache/nodejs-action@v1
+        with:
+          node-version: '22'
+          workspace: boringcache/actions
+
+      - run: npm install
+      - run: npm run build
+
+      - name: Test action (GOCACHEPROG proxy)
+        id: go
+        uses: ./
+        with:
+          workspace: boringcache/actions
+          go-version: '1.25'
+          gocacheprog: 'true'
+          cache-build: 'false'
+
+      - name: Verify GOCACHEPROG is set
+        run: |
+          set -euo pipefail
+          echo "GOCACHEPROG=$GOCACHEPROG"
+          echo "gocacheprog-enabled: ${{ steps.go.outputs.gocacheprog-enabled }}"
+          go version
+          go version | grep -q "go1.25" || { echo "Expected Go 1.25"; exit 1; }
+          [[ -n "$GOCACHEPROG" ]] || { echo "GOCACHEPROG not set"; exit 1; }
+
+      - name: Build test project
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/go-test && cd /tmp/go-test
+          go mod init example.com/test
+          cat > main.go << 'EOF'
+          package main
+
+          import "fmt"
+
+          func main() {
+              fmt.Println("Hello from GOCACHEPROG test")
+          }
+          EOF
+          go build -v ./...
+          ./test
+
+      - name: Upload proxy logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gocacheprog-proxy-logs-${{ matrix.os }}
+          path: /tmp/boringcache-proxy-*.log
+
+  test-versions:
+    needs: build
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        go: ['1.22', '1.23', '1.24']
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: boringcache/nodejs-action@v1
+        with:
+          node-version: '22'
+          workspace: boringcache/actions
+
+      - run: npm install
+      - run: npm run build
+
+      - name: Setup Go ${{ matrix.go }}
+        id: go
+        uses: ./
+        with:
+          workspace: boringcache/actions
+          go-version: ${{ matrix.go }}
+
+      - name: Verify Go version
+        run: |
+          set -euo pipefail
+          INSTALLED=$(go version | grep -oE 'go[0-9]+\.[0-9]+' | head -1 | sed 's/^go//')
+          EXPECTED="${{ matrix.go }}"
+          echo "Installed: $INSTALLED, Expected: $EXPECTED"
+          if [[ "$INSTALLED" != "$EXPECTED" ]]; then
+            echo "Go version mismatch!"
+            exit 1
+          fi
