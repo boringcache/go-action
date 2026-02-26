@@ -87,7 +87,7 @@ describe('Go restore/save round-trip', () => {
   it('full round-trip: restore go+modules+build, save go+modules+build', async () => {
     (core.getInput as jest.Mock).mockImplementation((name: string) => {
       const inputs: Record<string, string> = {
-        'cli-version': 'v1.8.0',
+        'cli-version': 'v1.9.0',
         'workspace': 'myorg/myproject',
         'cache-tag': '',
         'go-version': '1.23',
@@ -106,7 +106,7 @@ describe('Go restore/save round-trip', () => {
     });
     await new Promise(resolve => setTimeout(resolve, 100));
 
-    expect(ensureBoringCache).toHaveBeenCalledWith({ version: 'v1.8.0' });
+    expect(ensureBoringCache).toHaveBeenCalledWith({ version: 'v1.9.0' });
 
     expect(execBoringCache).toHaveBeenCalledTimes(3);
     expect(execBoringCache).toHaveBeenCalledWith(
@@ -173,7 +173,7 @@ describe('Go restore/save round-trip', () => {
   it('gocacheprog proxy mode: starts proxy, sets GOCACHEPROG, stops on save', async () => {
     (core.getInput as jest.Mock).mockImplementation((name: string) => {
       const inputs: Record<string, string> = {
-        'cli-version': 'v1.8.0',
+        'cli-version': 'v1.9.0',
         'workspace': 'myorg/myproject',
         'cache-tag': '',
         'go-version': '1.25',
